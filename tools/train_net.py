@@ -121,21 +121,58 @@ def setup(args):
     return cfg
 
 
+def setup_mc(trainer: DefaultTrainer, args):
+    import tlc
+    from tlc.integration.detectron2 import MetricsCollectionHook
+    TRAIN_DATASET_NAME = trainer.cfg.DATASETS.TRAIN[0]
+    VAL_DATASET_NAME = trainer.cfg.DATASETS.TEST[0]
+
+    dataset_metadata = MetadataCatalog.get(VAL_DATASET_NAME)
+
+    # metrics_collector = tlc.BoundingBoxMetricsCollector(
+    #     model=trainer.model,
+    #     classes=dataset_metadata.thing_classes,
+    #     label_mapping=dataset_metadata.thing_dataset_id_to_contiguous_id,
+    # )
+
+    # trainer.register_hooks([
+    #     MetricsCollectionHook(
+    #         dataset_name=VAL_DATASET_NAME,
+    #         metrics_collectors=[metrics_collector],
+    #         collection_frequency=50,
+    #         collection_start_iteration=50,
+    #         collect_metrics_after_train=False,
+    #     ),
+    # ])
+
+def setup_datasets(cfg, args):
+    from detectron2.data.datasets import register_coco_instances
+
+    TRAIN_DATASET_NAME = cfg.DATASETS.TRAIN[0]
+    VAL_DATASET_NAME = cfg.DATASETS.TEST[0]
+
+    register_coco_instances(TRAIN_DATASET_NAME, {}, "C:/Data/coco/annotations/instances_train2017.json",
+                            "C:/Data/coco/train2017",)
+    register_coco_instances(VAL_DATASET_NAME, {}, "C:/Data/coco/annotations/instances_val2017.json",
+                            "C:/Data/coco/val2017",)
+
+
+
+
 def main(args):
     cfg = setup(args)
+    setup_datasets(cfg, args)
 
     if args.eval_only:
         model = Trainer.build_model(cfg)
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
-            cfg.MODEL.WEIGHTS, resume=args.resume
-        )
+            cfg.MODEL.WEIGHTS, resume=args.resume)
         res = Trainer.test(cfg, model)
         if cfg.TEST.AUG.ENABLED:
             res.update(Trainer.test_with_TTA(cfg, model))
         if comm.is_main_process():
             verify_results(cfg, res)
         return res
-
     """
     If you'd like to do anything fancier than the standard training logic,
     consider writing your own training loop (see plain_train_net.py) or
@@ -143,10 +180,13 @@ def main(args):
     """
     trainer = Trainer(cfg)
     trainer.resume_or_load(resume=args.resume)
+    setup_mc(trainer, args)
+
     if cfg.TEST.AUG.ENABLED:
-        trainer.register_hooks(
-            [hooks.EvalHook(0, lambda: trainer.test_with_TTA(cfg, trainer.model))]
-        )
+        trainer.register_hooks([
+            hooks.EvalHook(0,
+                           lambda: trainer.test_with_TTA(cfg, trainer.model))
+        ])
     return trainer.train()
 
 
