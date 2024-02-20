@@ -25,7 +25,13 @@ import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import get_cfg
 from detectron2.data import MetadataCatalog
-from detectron2.engine import DefaultTrainer, default_argument_parser, default_setup, hooks, launch
+from detectron2.engine import (
+    default_argument_parser,
+    default_setup,
+    DefaultTrainer,
+    hooks,
+    launch,
+)
 from detectron2.evaluation import (
     CityscapesInstanceEvaluator,
     CityscapesSemSegEvaluator,
@@ -73,7 +79,9 @@ def build_evaluator(cfg, dataset_name, output_folder=None):
         return LVISEvaluator(dataset_name, output_dir=output_folder)
     if len(evaluator_list) == 0:
         raise NotImplementedError(
-            "no Evaluator for the dataset {} with the type {}".format(dataset_name, evaluator_type)
+            "no Evaluator for the dataset {} with the type {}".format(
+                dataset_name, evaluator_type
+            )
         )
     elif len(evaluator_list) == 1:
         return evaluator_list[0]
@@ -219,7 +227,7 @@ def main(args):
     return trainer.train()
 
 
-if __name__ == "__main__":
+def invoke_main() -> None:
     args = default_argument_parser().parse_args()
     print("Command Line Args:", args)
     launch(
@@ -230,3 +238,7 @@ if __name__ == "__main__":
         dist_url=args.dist_url,
         args=(args,),
     )
+
+
+if __name__ == "__main__":
+    invoke_main()  # pragma: no cover
