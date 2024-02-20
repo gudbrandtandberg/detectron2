@@ -136,15 +136,15 @@ def setup(args):
 
 def setup_mc(trainer: DefaultTrainer, args):
     import tlc
-    from tlc.integration.detectron2 import MetricsCollectionHook
-    tlc.init(project_name="COCO-Metrics-Collection", run_name="MC-detectron2-faster_rcnn_R_50_FPN_1x")
+    from tlc.integration.detectron2 import MetricsCollectionHook # MC-detectron2-faster_rcnn_R_50_FPN_1x
+    tlc.init(project_name=PROJECT_NAME, run_name="VAL-ONLY-TEST")
 
-    TRAIN_DATASET_NAME = trainer.cfg.DATASETS.TRAIN[0]
+    # TRAIN_DATASET_NAME = trainer.cfg.DATASETS.TRAIN[0]
     VAL_DATASET_NAME = trainer.cfg.DATASETS.TEST[0]
     dataset_metadata = MetadataCatalog.get(VAL_DATASET_NAME)
 
     DatasetCatalog.get(VAL_DATASET_NAME)  # fails without
-    DatasetCatalog.get(TRAIN_DATASET_NAME)
+    # DatasetCatalog.get(TRAIN_DATASET_NAME)
 
     metrics_collector = tlc.BoundingBoxMetricsCollector(
         model=trainer.model,
@@ -156,40 +156,46 @@ def setup_mc(trainer: DefaultTrainer, args):
         MetricsCollectionHook(
             dataset_name=VAL_DATASET_NAME,
             metrics_collectors=[metrics_collector],
-            collect_metrics_before_train=True,
+            collect_metrics_before_train=False,
+            collect_metrics_after_train=True,
         ),
-        MetricsCollectionHook(
-            dataset_name=TRAIN_DATASET_NAME,
-            metrics_collectors=[metrics_collector],
-            collect_metrics_before_train=True,
-        ),
+        # MetricsCollectionHook(
+        #     dataset_name=TRAIN_DATASET_NAME,
+        #     metrics_collectors=[metrics_collector],
+        #     collect_metrics_before_train=True,
+        # ),
     ])
 
+PROJECT_NAME = "COCO-Metrics-Collection"
+COCO_DATASET_ROOT = "C:/Data/coco"
 
 def setup_datasets(cfg, args):
     # from detectron2.data.datasets import register_coco_instances
     from tlc.integration.detectron2 import register_coco_instances
     import tlc
+    try:
+        tlc.register_url_alias("COCO_DATASET_ROOT", f"{COCO_DATASET_ROOT}")
+        tlc.register_url_alias("COCO_TRAIN_2017_IMAGES", f"{COCO_DATASET_ROOT}/train2017")
+        tlc.register_url_alias("COCO_VAL_2017_IMAGES", f"{COCO_DATASET_ROOT}/val2017")
+    except Exception as e:
+        print(e)
+
     TRAIN_DATASET_NAME = cfg.DATASETS.TRAIN[0]
     VAL_DATASET_NAME = cfg.DATASETS.TEST[0]
-
-    tlc.register_url_alias("COCO_DATASET_ROOT", "C:/Data/coco")
-    tlc.register_url_alias("COCO_TRAIN_2017_IMAGES", "C:/Data/coco/train2017")
-    tlc.register_url_alias("COCO_VAL_2017_IMAGES", "C:/Data/coco/val2017")
 
     register_coco_instances(
         TRAIN_DATASET_NAME,
         {},
-        "C:/Data/coco/annotations/instances_train2017.json",
-        "C:/Data/coco/train2017",
-        project_name="COCO-Metrics-Collection",
+        f"{COCO_DATASET_ROOT}/annotations/instances_train2017.json",
+        f"{COCO_DATASET_ROOT}/train2017",
+        project_name=PROJECT_NAME,
     )
     register_coco_instances(
         VAL_DATASET_NAME,
         {},
-        "C:/Data/coco/annotations/instances_val2017.json",
-        "C:/Data/coco/val2017",
-        project_name="COCO-Metrics-Collection",
+        f"{COCO_DATASET_ROOT}/annotations/instances_val2017.json",
+        f"{COCO_DATASET_ROOT}/val2017",
+        project_name=PROJECT_NAME,
     )
 
 
