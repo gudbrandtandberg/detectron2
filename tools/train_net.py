@@ -19,6 +19,7 @@ You may want to write your own script with your datasets and other customization
 import logging
 import os
 from collections import OrderedDict
+from detectron2.data.catalog import DatasetCatalog
 
 import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer
@@ -89,7 +90,8 @@ class Trainer(DefaultTrainer):
 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
-        return build_evaluator(cfg, dataset_name, output_folder)
+        raise NotImplementedError()
+        # return build_evaluator(cfg, dataset_name, output_folder)
 
     @classmethod
     def test_with_TTA(cls, cfg, model):
@@ -99,9 +101,10 @@ class Trainer(DefaultTrainer):
         logger.info("Running inference with test-time augmentation ...")
         model = GeneralizedRCNNWithTTA(cfg, model)
         evaluators = [
-            cls.build_evaluator(
-                cfg, name, output_folder=os.path.join(cfg.OUTPUT_DIR, "inference_TTA")
-            )
+            cls.build_evaluator(cfg,
+                                name,
+                                output_folder=os.path.join(
+                                    cfg.OUTPUT_DIR, "inference_TTA"))
             for name in cfg.DATASETS.TEST
         ]
         res = cls.test(cfg, model, evaluators)
@@ -114,8 +117,10 @@ def setup(args):
     Create configs and perform basic setups.
     """
     cfg = get_cfg()
+    from detectron2 import model_zoo
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
+    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/faster_rcnn_R_50_FPN_1x.yaml")
     cfg.freeze()
     default_setup(cfg, args)
     return cfg
@@ -124,37 +129,60 @@ def setup(args):
 def setup_mc(trainer: DefaultTrainer, args):
     import tlc
     from tlc.integration.detectron2 import MetricsCollectionHook
+    tlc.init(project_name="COCO-Metrics-Collection", run_name="MC-detectron2-faster_rcnn_R_50_FPN_1x")
+
     TRAIN_DATASET_NAME = trainer.cfg.DATASETS.TRAIN[0]
     VAL_DATASET_NAME = trainer.cfg.DATASETS.TEST[0]
-
     dataset_metadata = MetadataCatalog.get(VAL_DATASET_NAME)
 
-    # metrics_collector = tlc.BoundingBoxMetricsCollector(
-    #     model=trainer.model,
-    #     classes=dataset_metadata.thing_classes,
-    #     label_mapping=dataset_metadata.thing_dataset_id_to_contiguous_id,
-    # )
+    DatasetCatalog.get(VAL_DATASET_NAME)  # fails without
+    DatasetCatalog.get(TRAIN_DATASET_NAME)
 
-    # trainer.register_hooks([
-    #     MetricsCollectionHook(
-    #         dataset_name=VAL_DATASET_NAME,
-    #         metrics_collectors=[metrics_collector],
-    #         collection_frequency=50,
-    #         collection_start_iteration=50,
-    #         collect_metrics_after_train=False,
-    #     ),
-    # ])
+    metrics_collector = tlc.BoundingBoxMetricsCollector(
+        model=trainer.model,
+        classes=dataset_metadata.thing_classes,
+        label_mapping=dataset_metadata.thing_dataset_id_to_contiguous_id,
+    )
+
+    trainer.register_hooks([
+        MetricsCollectionHook(
+            dataset_name=VAL_DATASET_NAME,
+            metrics_collectors=[metrics_collector],
+            collect_metrics_before_train=True,
+        ),
+        MetricsCollectionHook(
+            dataset_name=TRAIN_DATASET_NAME,
+            metrics_collectors=[metrics_collector],
+            collect_metrics_before_train=True,
+        ),
+    ])
+
 
 def setup_datasets(cfg, args):
-    from detectron2.data.datasets import register_coco_instances
-
+    # from detectron2.data.datasets import register_coco_instances
+    from tlc.integration.detectron2 import register_coco_instances
+    import tlc
     TRAIN_DATASET_NAME = cfg.DATASETS.TRAIN[0]
     VAL_DATASET_NAME = cfg.DATASETS.TEST[0]
 
-    register_coco_instances(TRAIN_DATASET_NAME, {}, "C:/Data/coco/annotations/instances_train2017.json",
-                            "C:/Data/coco/train2017",)
-    register_coco_instances(VAL_DATASET_NAME, {}, "C:/Data/coco/annotations/instances_val2017.json",
-                            "C:/Data/coco/val2017",)
+    tlc.register_url_alias("COCO_DATASET_ROOT", "C:/Data/coco")
+    tlc.register_url_alias("COCO_TRAIN_2017_IMAGES", "C:/Data/coco/train2017")
+    tlc.register_url_alias("COCO_VAL_2017_IMAGES", "C:/Data/coco/val2017")
+
+    register_coco_instances(
+        TRAIN_DATASET_NAME,
+        {},
+        "C:/Data/coco/annotations/instances_train2017.json",
+        "C:/Data/coco/train2017",
+        project_name="COCO-Metrics-Collection",
+    )
+    register_coco_instances(
+        VAL_DATASET_NAME,
+        {},
+        "C:/Data/coco/annotations/instances_val2017.json",
+        "C:/Data/coco/val2017",
+        project_name="COCO-Metrics-Collection",
+    )
 
 
 
@@ -178,6 +206,7 @@ def main(args):
     consider writing your own training loop (see plain_train_net.py) or
     subclassing the trainer.
     """
+    
     trainer = Trainer(cfg)
     trainer.resume_or_load(resume=args.resume)
     setup_mc(trainer, args)
