@@ -166,7 +166,7 @@ Category ids in annotations are not in [1, #categories]! We'll apply a mapping f
 
     for (img_dict, anno_dict_list) in imgs_anns:
         record = {}
-        record["file_name"] = os.path.join(image_root, img_dict["file_name"])
+        record["file_name"] = image_root + "/" + img_dict["file_name"]#os.path.join(image_root, img_dict["file_name"])
         record["height"] = img_dict["height"]
         record["width"] = img_dict["width"]
         image_id = record["image_id"] = img_dict["id"]
