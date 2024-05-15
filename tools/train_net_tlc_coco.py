@@ -47,10 +47,10 @@ from detectron2.modeling import GeneralizedRCNNWithTTA
 
 ### START PATH MANAGER REGISTRATION
 # import tlc
-# from detectron2.utils.file_io import PathManager
-# from iopath.common.s3 import S3PathHandler
+from detectron2.utils.file_io import PathManager
+from iopath.common.s3 import S3PathHandler
 
-# PathManager.register_handler(S3PathHandler())
+PathManager.register_handler(S3PathHandler())
 ### END PATH MANAGER REGISTRATION
 
 def build_evaluator(cfg, dataset_name, output_folder=None):
