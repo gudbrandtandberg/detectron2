@@ -45,6 +45,13 @@ from detectron2.evaluation import (
 )
 from detectron2.modeling import GeneralizedRCNNWithTTA
 
+### START PATH MANAGER REGISTRATION
+# import tlc
+# from detectron2.utils.file_io import PathManager
+# from iopath.common.s3 import S3PathHandler
+
+# PathManager.register_handler(S3PathHandler())
+### END PATH MANAGER REGISTRATION
 
 def build_evaluator(cfg, dataset_name, output_folder=None):
     """
@@ -137,8 +144,10 @@ def setup(args):
 
 
 def setup_metrics_collection(trainer: DefaultTrainer, args):
+    return
     if args.disable_tlc:
         return
+
     import tlc
     from tlc.integration.detectron2 import MetricsCollectionHook
     tlc.init(project_name=args.tlc_project_name, run_name=args.tlc_run_name)
@@ -148,10 +157,9 @@ def setup_metrics_collection(trainer: DefaultTrainer, args):
     dataset_metadata = MetadataCatalog.get(VAL_DATASET_NAME)
 
     DatasetCatalog.get(VAL_DATASET_NAME)  # fails without
-    # DatasetCatalog.get(TRAIN_DATASET_NAME)
+    DatasetCatalog.get(TRAIN_DATASET_NAME)
 
     metrics_collector = tlc.BoundingBoxMetricsCollector(
-        model=trainer.model,
         classes=dataset_metadata.thing_classes,
         label_mapping=dataset_metadata.thing_dataset_id_to_contiguous_id,
     )
@@ -160,58 +168,56 @@ def setup_metrics_collection(trainer: DefaultTrainer, args):
         MetricsCollectionHook(
             dataset_name=VAL_DATASET_NAME,
             metrics_collectors=[metrics_collector],
-            collect_metrics_before_train=False,
-            collect_metrics_after_train=True,
+            collect_metrics_before_train=True,
+            collect_metrics_after_train=False,
         ),
-        # MetricsCollectionHook(
-        #     dataset_name=TRAIN_DATASET_NAME,
-        #     metrics_collectors=[metrics_collector],
-        #     collect_metrics_before_train=True,
-        # ),
+        MetricsCollectionHook(
+            dataset_name=TRAIN_DATASET_NAME,
+            metrics_collectors=[metrics_collector],
+            collect_metrics_before_train=True,
+            collect_metrics_after_train=False,
+        ),
     ])
 
 def setup_datasets(cfg, args):
     TRAIN_DATASET_NAME = cfg.DATASETS.TRAIN[0]
     VAL_DATASET_NAME = cfg.DATASETS.TEST[0]
-    COCO_DATASET_ROOT = args.tlc_coco_dataset_root
+    
+    train_image_folder = args.train_image_dir
+    val_image_folder = args.val_image_dir
+    val_annotations_file = args.val_annotations_file
+    train_annotations_file = args.train_annotations_file
+    
 
     if args.disable_tlc:
         from detectron2.data.datasets import register_coco_instances
         register_coco_instances(
             name=TRAIN_DATASET_NAME,
             metadata={},
-            json_file=f"{COCO_DATASET_ROOT}/annotations/instances_train2017.json",
-            image_root=f"{COCO_DATASET_ROOT}/train2017",
+            json_file=train_annotations_file,
+            image_root=train_image_folder,
         )
         register_coco_instances(
             name=VAL_DATASET_NAME,
             metadata={},
-            json_file=f"{COCO_DATASET_ROOT}/annotations/instances_val2017.json",
-            image_root=f"{COCO_DATASET_ROOT}/val2017",
+            json_file=val_annotations_file,
+            image_root=val_image_folder,
         )
     else:
-        import tlc
         from tlc.integration.detectron2 import register_coco_instances
-
-        try:
-            tlc.register_url_alias("COCO_DATASET_ROOT", f"{COCO_DATASET_ROOT}")
-            tlc.register_url_alias("COCO_TRAIN_2017_IMAGES", f"{COCO_DATASET_ROOT}/train2017")
-            tlc.register_url_alias("COCO_VAL_2017_IMAGES", f"{COCO_DATASET_ROOT}/val2017")
-        except Exception as e:
-            print(e)
 
         register_coco_instances(
             name=TRAIN_DATASET_NAME,
             metadata={},
-            json_file=f"{COCO_DATASET_ROOT}/annotations/instances_train2017.json",
-            image_root=f"{COCO_DATASET_ROOT}/train2017",
+            json_file=train_annotations_file,
+            image_root=train_image_folder,
             project_name=args.tlc_project_name,
         )
         register_coco_instances(
             name=VAL_DATASET_NAME,
             metadata={},
-            json_file=f"{COCO_DATASET_ROOT}/annotations/instances_val2017.json",
-            image_root=f"{COCO_DATASET_ROOT}/val2017",
+            json_file=val_annotations_file,
+            image_root=val_image_folder,
             project_name=args.tlc_project_name,
         )
 
@@ -256,7 +262,10 @@ def invoke_main() -> None:
     parser.add_argument("--tlc-model-config", type=str, default="COCO-Detection/faster_rcnn_R_50_FPN_1x.yaml")
     parser.add_argument("--tlc-project-name", type=str, default="COCO-Metrics-Collection")
     parser.add_argument("--tlc-run-name", type=str, default="")
-    parser.add_argument("--tlc-coco-dataset-root", type=str, default="C:/Data/coco")
+    parser.add_argument("--val-annotations-file", type=str)
+    parser.add_argument("--train-annotations-file", type=str)
+    parser.add_argument("--train-image-dir", type=str)
+    parser.add_argument("--val-image-dir", type=str)
     parser.add_argument("--tlc-train-dataset-name", type=str, default="COCO_TRAIN")
     parser.add_argument("--tlc-val-dataset-name", type=str, default="COCO_VAL")
     args = parser.parse_args()
