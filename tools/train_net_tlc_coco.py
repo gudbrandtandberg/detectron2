@@ -144,13 +144,12 @@ def setup(args):
 
 
 def setup_metrics_collection(trainer: DefaultTrainer, args):
-    return
     if args.disable_tlc:
         return
 
     import tlc
-    from tlc.integration.detectron2 import MetricsCollectionHook
-    tlc.init(project_name=args.tlc_project_name, run_name=args.tlc_run_name)
+    from tlc.integration.detectron2 import MetricsCollectionHook, DetectronMetricsCollectionHook
+    run = tlc.init(project_name=args.tlc_project_name, run_name=args.tlc_run_name)
 
     TRAIN_DATASET_NAME = trainer.cfg.DATASETS.TRAIN[0]
     VAL_DATASET_NAME = trainer.cfg.DATASETS.TEST[0]
@@ -167,16 +166,17 @@ def setup_metrics_collection(trainer: DefaultTrainer, args):
     trainer.register_hooks([
         MetricsCollectionHook(
             dataset_name=VAL_DATASET_NAME,
-            metrics_collectors=[metrics_collector],
-            collect_metrics_before_train=True,
-            collect_metrics_after_train=False,
+            metrics_collectors=metrics_collector,
+            collect_metrics_before_train=False,
+            collect_metrics_after_train=True,
         ),
         MetricsCollectionHook(
             dataset_name=TRAIN_DATASET_NAME,
             metrics_collectors=[metrics_collector],
-            collect_metrics_before_train=True,
-            collect_metrics_after_train=False,
+            collect_metrics_before_train=False,
+            collect_metrics_after_train=True,
         ),
+        DetectronMetricsCollectionHook(run.url, collection_frequency=5)
     ])
 
 def setup_datasets(cfg, args):
