@@ -176,7 +176,7 @@ def setup_metrics_collection(trainer: DefaultTrainer, args):
             collect_metrics_before_train=False,
             collect_metrics_after_train=True,
         ),
-        DetectronMetricsCollectionHook(run.url, collection_frequency=5)
+        DetectronMetricsCollectionHook(collection_frequency=5, collect_metrics_before_train=True),
     ])
 
 def setup_datasets(cfg, args):
